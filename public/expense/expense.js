@@ -58,7 +58,7 @@ async function removefromscreen(data) {
     try {
         let page = localStorage.getItem('page');
         let itemsPerPage = localStorage.getItem('itemsPerPage');
-        let responseData = await axios.delete(`http://localhost:3000/expense/delete-expense/${data.id}?page=${page}&itemsPerPage=${itemsPerPage}`, { headers: { 'Authorization': token } });
+        let responseData = await axios.delete(`http://localhost:3000/expense/delete-expense/${data._id}?page=${page}&itemsPerPage=${itemsPerPage}`, { headers: { 'Authorization': token } });
         if (responseData.status === 201) {
             postProducts(responseData.data);
         }

@@ -12,10 +12,12 @@ exports.purchasepremium = async (req, res, next) => {
             if (err) {
                 throw new Error(err);
             }
-            await req.user.createOrder({ orderid: order.id, status: 'PENDING' })
+            const orderPr = new Order({ orderid: order.id, status: 'PENDING', userId: req.user });
+            await orderPr.save();
             return res.status(201).json({ order, key_id: rzp.key_id });
         })
     } catch (error) {
+        console.log(error);
         res.status(403).json({ message: 'Something went wrong' });
     }
 }
@@ -23,9 +25,12 @@ exports.updateTransactionStatus = async (req, res, next) => {
     try {
         const userId = req.user.id;
         const { order_id, payment_id, } = req.body;
-        const order = await Order.findOne({ where: { orderid: order_id } });
-        const promise1 = order.update({ paymentid: payment_id, status: 'SUCCESSFULL' });
-        const promise2 = req.user.update({ ispremiumuser: true });
+        const order = await Order.findOne({ 'orderid': order_id });
+        order.paymentid = payment_id;
+        order.status = 'SUCCESSFULL';
+        const promise1 = order.save();
+        req.user.ispremiumuser = true;
+        const promise2 = req.user.save();
         await Promise.all([promise1, promise2]);
         return res.status(202).json({ success: true, message: 'Transcation Successfull', token: generateAccessToken(userId, undefined, true) })
     } catch (error) {
@@ -36,8 +41,9 @@ exports.updateTransactionStatus = async (req, res, next) => {
 exports.failedTransactionStatus = async (req, res, next) => {
     try {
         const { order_id } = req.body;
-        const order = await Order.findOne({ where: { orderid: order_id } });
-        await order.update({ status: 'FAILED' });
+        const order = await Order.findOne({ 'orderid': order_id });
+        order.status = 'FAILED';
+        await order.save();
         return res.status(203).json({ success: false, message: 'Transcation Failed' })
     } catch (error) {
         res.status(403).json({ message: 'Something went wrong' });

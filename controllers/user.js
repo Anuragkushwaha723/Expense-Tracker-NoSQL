@@ -15,7 +15,6 @@ module.exports.postUserSignUp = async (req, res, next) => {
             try {
                 const user = new User({ name: name, email: email, password: hash });
                 await user.save();
-                // await User.create({ name: name, email: email, password: hash });
                 res.status(201).json({ message: 'Successfully create new user' });
             } catch (error) {
                 res.status(500).json({ message: 'Please try again' });

@@ -1,18 +1,15 @@
 const Sib = require('sib-api-v3-sdk');
-const sequelize = require('../utils/database');
 const bcrypt = require('bcrypt');
 const User = require('../models/user');
 const Forgotpassword = require('../models/forgotpassword');
-const uuid = require('uuid');
 exports.postForgotPassword = async (req, res, next) => {
-    let t = await sequelize.transaction();
     try {
         const emailId = req.body.emailId;
-        let user = await User.findOne({ where: { email: emailId } });
+        let user = await User.findOne({ email: emailId });
         if (user) {
             try {
-                const id = uuid.v4();
-                await user.createForgotpassword({ id: id, isactive: true }, { transaction: t });
+                const userP = new Forgotpassword({ isactive: true, userId: user._id });
+                let userD = await userP.save();
                 const client = Sib.ApiClient.instance;
                 const apiKey = client.authentications['api-key'];
                 apiKey.apiKey = process.env.SIB_KEY_SECRET;
@@ -23,18 +20,17 @@ exports.postForgotPassword = async (req, res, next) => {
                     sender,
                     to: receivers,
                     subject: 'Reset your password in Expense Tracker App',
-                    htmlContent: `<a href="http://localhost:3000/password/resetpassword/${id}">Change your password</a>`
+                    htmlContent: `<a href="http://localhost:3000/password/resetpassword/${userD._id}">Change your password</a>`
                 });
-                await t.commit();
                 return res.status(201).json({ message: 'Link to reset password sent to your mail ' });
             } catch (error) {
+                console.log(error);
                 throw new Error('Something went wrong');
             }
         } else {
             throw new Error('Something went wrong');
         }
     } catch (error) {
-        await t.rollback();
         return res.status(500).json({ message: 'Something went wrong' });
     }
 }
@@ -42,7 +38,7 @@ exports.postForgotPassword = async (req, res, next) => {
 exports.getResetPassword = async (req, res, next) => {
     try {
         const id = req.params.id;
-        let data = await Forgotpassword.findOne({ where: { id: id } });
+        let data = await Forgotpassword.findOne({ _id: id });
         if (data) {
             res.status(200).send(`<html>
                                     <form action="/password/updatepassword/${id}" method="get">
@@ -65,23 +61,23 @@ exports.getResetPassword = async (req, res, next) => {
 
 }
 exports.getUpdatePassword = async (req, res, next) => {
-    let t = await sequelize.transaction();
     try {
         const id = req.params.id;
         const password = req.query.newpassword;
-        let data = await Forgotpassword.findOne({ where: { id: id, isactive: true } });
+        let data = await Forgotpassword.findOne({ _id: id, isactive: true });
         if (data) {
             try {
-                const user = await User.findOne({ where: { id: data.userId } });
+                const user = await User.findOne({ _id: data.userId });
                 if (user) {
                     const saltRounds = 10;
                     bcrypt.hash(password, saltRounds, async (err, hash) => {
                         if (err) {
                             throw new Error('Something went wrong');
                         }
-                        await user.update({ password: hash }, { transaction: t });
-                        await data.update({ isactive: false }, { transaction: t });
-                        await t.commit();
+                        user.password = hash;
+                        await user.save();
+                        data.isactive = false;
+                        await data.save();
                         return res.status(201).json({ message: 'Successfuly update the new password' })
                     })
                 }
@@ -90,7 +86,6 @@ exports.getUpdatePassword = async (req, res, next) => {
             }
         }
     } catch (error) {
-        await t.rollback();
         res.status(404).json(error);
     }
 
